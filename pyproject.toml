@@ -3,6 +3,9 @@ name = "l2-transfer-matrix-method"
 version = "0.1.0"
 description = ""
 authors = ["Charlie Kennedy <charleslloydkennedy@gmail.com>"]
+packages = [
+    { include="transfer_matrix_method" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
