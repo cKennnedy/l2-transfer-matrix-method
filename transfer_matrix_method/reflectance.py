@@ -1,10 +1,16 @@
 from dataclasses import dataclass
 from typing import Callable
+from transfer_matrix_method import RefractiveIndex
+import numpy as np
 
 @dataclass
 class Layer:
     thickness: float
-    refractive_index: Callable
+    refractive_index: RefractiveIndex
+
+    @property
+    def D(self):
+        return lambda wavelength: (1/self.thickness)* np.array([[1, self.refractive_index[wavelength]["n"]],[self.refractive_index[wavelength]["n"],1]])
 
 def calculate_reflectance(layers: list[Layer]) -> float:
     """Calculate the reflectance of a list of thin layers

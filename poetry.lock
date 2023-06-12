@@ -1,4 +1,12 @@
 [[package]]
+name = "numpy"
+version = "1.24.3"
+description = "Fundamental package for array computing in Python"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[[package]]
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
@@ -9,7 +17,8 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "c01ed8b8bf34541d805878eb3e4240eef17df332dd70036f32f2070fd0c3f720"
+content-hash = "18496afe5da6f2a193cc4fe09320a9dc706727a23812bbe7481713a4fcc6d2f9"
 
 [metadata.files]
+numpy = []
 pyyaml = []

@@ -5,7 +5,7 @@ import csv
 
 class RefractiveIndex:
     def __init__(self, data_file: TextIOWrapper):
-        data_wrapper = yaml.load(data_file.read())
+        data_wrapper = yaml.load(data_file.read(), Loader=yaml.FullLoader)
         data = csv.reader(data_wrapper["DATA"][0]["data"].split("\n"), delimiter=" ")
         self._data = {}
         for data_point in data:
