@@ -1,5 +1,4 @@
 from io import TextIOWrapper
-import yaml
 import csv
 
 
