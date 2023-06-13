@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Callable
-from transfer_matrix_method import RefractiveIndex
+from .refractive_index import RefractiveIndex
 from math import e
 import numpy as np
 
@@ -32,7 +32,7 @@ class Layer:
 
 
 
-def reflectance(layers: list[Layer]) -> tuple[float,float]:
+def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
     """Calculate the reflectance of a list of thin layers
 
     Args:
@@ -45,11 +45,11 @@ def reflectance(layers: list[Layer]) -> tuple[float,float]:
     air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":1}}))
     augmented_layers = [air, *layers, air]
     
-    matrices = [augmented_layers[0].D[augmented_layers[1]]]
+    matrices = [augmented_layers[0].D(augmented_layers[1])(wavelength)]
     for i in range(1, len(augmented_layers) - 1):
         matrices.extend([
-            augmented_layers[i].P,
-            augmented_layers[i].D(augmented_layers[i+1])
+            augmented_layers[i].P(wavelength),
+            augmented_layers[i].D(augmented_layers[i+1])(wavelength)
         ])
 
     M = matrices[0]
