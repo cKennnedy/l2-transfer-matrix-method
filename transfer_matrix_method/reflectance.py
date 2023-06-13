@@ -18,7 +18,7 @@ class Layer:
         )
 
     def D(self, other: "Layer") -> Callable[[float], np.ndarray]:
-        return lambda wavelength: (1/self.thickness)* np.array([
+        return lambda wavelength: (1 - self.relative_index(other)(wavelength))* np.array([
             [1, self.relative_index(other)(wavelength)],
             [self.relative_index(other)(wavelength), 1]
         ])
