@@ -39,7 +39,7 @@ def reflectance(layers: list[Layer]) -> float:
         layers (list[Layer]): list of layer objects
 
     Returns:
-        float: reflectance of multi-layer film
+        tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
     matrices = [layers[0].P]
     for i in range(1, len(layers)):
@@ -48,6 +48,8 @@ def reflectance(layers: list[Layer]) -> float:
             layers[i].P
         ])
 
-    result = matrices[0]
+    M = matrices[0]
     for matrix in matrices[1:]:
-        result = np.matmul(result, matrix)
+        M = np.matmul(M, matrix)
+
+    return M[1,0]/M[0,0], M[0,0]
