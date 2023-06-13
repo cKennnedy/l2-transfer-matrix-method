@@ -41,11 +41,15 @@ def reflectance(layers: list[Layer]) -> tuple[float,float]:
     Returns:
         tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
-    matrices = [layers[0].D[layers[1]]]
-    for i in range(1, len(layers)):
+
+    air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":1}}))
+    augmented_layers = [air, *layers, air]
+    
+    matrices = [augmented_layers[0].D[augmented_layers[1]]]
+    for i in range(1, len(augmented_layers) - 1):
         matrices.extend([
-            layers[i].P,
-            layers[i].D(layers[i-1]),
+            augmented_layers[i].P,
+            augmented_layers[i].D(augmented_layers[i+1])
         ])
 
     M = matrices[0]
