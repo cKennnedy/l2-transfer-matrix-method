@@ -31,3 +31,14 @@ class YAMLRefractiveIndex(RefractiveIndex):
 
         super().__init__(prepared_data)
 
+class CSVRefractiveIndex(RefractiveIndex):
+    def __init__(self, data_file: TextIOWrapper):
+        csv_data = csv.DictReader(data_file.readlines(), delimiter="\t")
+        prepared_data = {}
+        for line in csv_data:
+            prepared_data[float(line["Wavelength(nm)"])/1e9] = {
+                "n": float(line["n"]),
+                "k": float(line["k"])
+            }
+
+        super().__init__(prepared_data)
