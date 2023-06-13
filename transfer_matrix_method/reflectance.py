@@ -9,25 +9,30 @@ class Layer:
     thickness: float
     refractive_index: RefractiveIndex
 
-    def relative_index(self, other: "Layer") -> Callable[[float], float]:
+    def r(self, other: "Layer") -> Callable[[float], float]:
         return lambda wavelength: (
             abs(
                 (self.refractive_index[wavelength]["n"] - other.refractive_index[wavelength]["n"])/
                 (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
-            ) ** 2
+            )
+        )
+    
+    def t(self, other: "Layer") -> Callable[[float], float]:
+        return lambda wavelength: (
+            2*self.refractive_index[wavelength]["n"] / (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
         )
 
     def D(self, other: "Layer") -> Callable[[float], np.ndarray]:
-        return lambda wavelength: (1 - self.relative_index(other)(wavelength))* np.array([
-            [1, self.relative_index(other)(wavelength)],
-            [self.relative_index(other)(wavelength), 1]
+        return lambda wavelength: (1/self.t(other)(wavelength)) * np.array([
+            [1, self.r(other)(wavelength)],
+            [self.r(other)(wavelength), 1]
         ])
     
     @property
     def P(self) -> Callable[[float], np.ndarray]:
         return lambda wavelength: np.array([
             [e**(self.refractive_index[wavelength]["k"]*self.thickness*1j), 0],
-            [0, e**(self.refractive_index[wavelength]["k"]*self.thickness*1j)]
+            [0, e**-(self.refractive_index[wavelength]["k"]*self.thickness*1j)]
         ])
 
 
@@ -42,7 +47,7 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
         tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
 
-    air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":1}}))
+    air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
     augmented_layers = [air, *layers, air]
     
     matrices = [augmented_layers[0].D(augmented_layers[1])(wavelength)]
