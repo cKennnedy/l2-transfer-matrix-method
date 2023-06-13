@@ -3,6 +3,7 @@ from typing import Callable
 from .refractive_index import RefractiveIndex
 from math import e
 import numpy as np
+import tmm.tmm_core as tmm
 
 @dataclass
 class Layer:
@@ -47,18 +48,11 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
         tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
 
-    air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
+    air = Layer(np.inf, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
     augmented_layers = [air, *layers, air]
     
-    matrices = [augmented_layers[0].D(augmented_layers[1])(wavelength)]
-    for i in range(1, len(augmented_layers) - 1):
-        matrices.extend([
-            augmented_layers[i].P(wavelength),
-            augmented_layers[i].D(augmented_layers[i+1])(wavelength)
-        ])
+    n_list = [l.refractive_index[wavelength]["n"]+l.refractive_index[wavelength]["k"]*1j for l in augmented_layers]
+    d_list = [l.thickness for l in augmented_layers]
 
-    M = matrices[0]
-    for matrix in matrices[1:]:
-        M = np.matmul(M, matrix)
-
-    return M[1,0]/M[0,0], M[0,0]
+    return tmm.coh_tmm("s", n_list=n_list, d_list=d_list, th_0=0, lam_vac=wavelength)
+    
