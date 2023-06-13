@@ -32,7 +32,7 @@ class Layer:
 
 
 
-def reflectance(layers: list[Layer]) -> float:
+def reflectance(layers: list[Layer]) -> tuple[float,float]:
     """Calculate the reflectance of a list of thin layers
 
     Args:
@@ -41,11 +41,11 @@ def reflectance(layers: list[Layer]) -> float:
     Returns:
         tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
-    matrices = [layers[0].P]
+    matrices = [layers[0].D[layers[1]]]
     for i in range(1, len(layers)):
         matrices.extend([
+            layers[i].P,
             layers[i].D(layers[i-1]),
-            layers[i].P
         ])
 
     M = matrices[0]
