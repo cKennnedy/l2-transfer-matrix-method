@@ -14,7 +14,7 @@ class RefractiveIndex:
         below = max([w for w in wavelengths if w <= wavelength])
         above = min([w for w in wavelengths if w > wavelength])
         interp_coeff = (wavelength-below) / (above - below)
-        lininterp = lambda value: self._data[below][value] + interp_coeff * (self._data[above][value] - self._data[below]["k"])
+        lininterp = lambda value: self._data[below][value] + interp_coeff * (self._data[above][value] - self._data[below][value])
         return {
             "n": lininterp("n"), 
             "k": lininterp("k")
