@@ -14,6 +14,8 @@ class RefractiveIndex:
 
     def __getitem__(self, wavelength:float):
         wavelengths = self._data.keys()
+        if wavelength > max(wavelengths) or wavelength < min(wavelengths):
+            raise KeyError("Index out of Data Range")
         below = max([w for w in wavelengths if w <= wavelength])
         above = min([w for w in wavelengths if w > wavelength])
         interp_coeff = (wavelength-below) / (above - below)
