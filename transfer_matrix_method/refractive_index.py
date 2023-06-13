@@ -1,3 +1,5 @@
+from .get_material_data import get_filepath
+
 from io import TextIOWrapper
 import yaml
 import csv
@@ -42,3 +44,8 @@ class CSVRefractiveIndex(RefractiveIndex):
             }
 
         super().__init__(prepared_data)
+
+class MaterialRefractiveIndex(CSVRefractiveIndex):
+    def __init__(self, material_name: str):
+        with open(get_filepath(material=material_name), encoding="utf-8-sig") as f:
+            super().__init__(f)
