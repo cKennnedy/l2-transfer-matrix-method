@@ -3,7 +3,6 @@ from typing import Callable
 from .refractive_index import RefractiveIndex
 from math import e
 import numpy as np
-import tmm.tmm_core as tmm
 
 @dataclass
 class Layer:
@@ -12,15 +11,13 @@ class Layer:
 
     def r(self, other: "Layer") -> Callable[[float], float]:
         return lambda wavelength: (
-            abs(
-                (self.refractive_index[wavelength]["n"] - other.refractive_index[wavelength]["n"])/
-                (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
-            )
+                (self.refractive_index[wavelength] - other.refractive_index[wavelength])/
+                (self.refractive_index[wavelength] + other.refractive_index[wavelength])
         )
     
     def t(self, other: "Layer") -> Callable[[float], float]:
         return lambda wavelength: (
-            2*self.refractive_index[wavelength]["n"] / (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
+            2*self.refractive_index[wavelength] / (self.refractive_index[wavelength] + other.refractive_index[wavelength])
         )
 
     def D(self, other: "Layer") -> Callable[[float], np.ndarray]:
@@ -31,9 +28,12 @@ class Layer:
     
     @property
     def P(self) -> Callable[[float], np.ndarray]:
+        wavenumber = lambda wavelength: (2*np.pi) / wavelength
+
+        coeff = lambda wavelength: self.refractive_index[wavelength] * self.thickness*1j* wavenumber(wavelength)
         return lambda wavelength: np.array([
-            [e**(self.refractive_index[wavelength]["k"]*self.thickness*1j), 0],
-            [0, e**-(self.refractive_index[wavelength]["k"]*self.thickness*1j)]
+            [np.exp(-coeff(wavelength)), 0],
+            [0, np.e**(coeff(wavelength))]
         ])
 
 
@@ -48,11 +48,18 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
         tuple[float,float]: (reflectance, transmission) of multi-layer film
     """
 
-    air = Layer(np.inf, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
+    air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
     augmented_layers = [air, *layers, air]
     
-    n_list = [l.refractive_index[wavelength]["n"]+l.refractive_index[wavelength]["k"]*1j for l in augmented_layers]
-    d_list = [l.thickness for l in augmented_layers]
+    matrices = [augmented_layers[0].D(augmented_layers[1])(wavelength)]
+    for i in range(1, len(augmented_layers) - 1):
+        matrices.extend([
+            augmented_layers[i].P(wavelength),
+            augmented_layers[i].D(augmented_layers[i+1])(wavelength)
+        ])
 
-    return tmm.coh_tmm("s", n_list=n_list, d_list=d_list, th_0=0, lam_vac=wavelength)
-    
+    M = matrices[0]
+    for matrix in matrices[1:]:
+        M = np.matmul(M, matrix)
+
+    return abs((M[1,0]/M[0,0]))**2, abs(1/M[0,0])**2
