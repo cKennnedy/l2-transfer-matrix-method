@@ -11,15 +11,13 @@ class Layer:
 
     def r(self, other: "Layer") -> Callable[[float], float]:
         return lambda wavelength: (
-            abs(
-                (self.refractive_index[wavelength]["n"] - other.refractive_index[wavelength]["n"])/
-                (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
-            )
+                (self.refractive_index[wavelength] - other.refractive_index[wavelength])/
+                (self.refractive_index[wavelength] + other.refractive_index[wavelength])
         )
     
     def t(self, other: "Layer") -> Callable[[float], float]:
         return lambda wavelength: (
-            2*self.refractive_index[wavelength]["n"] / (self.refractive_index[wavelength]["n"] + other.refractive_index[wavelength]["n"])
+            2*self.refractive_index[wavelength] / (self.refractive_index[wavelength] + other.refractive_index[wavelength])
         )
 
     def D(self, other: "Layer") -> Callable[[float], np.ndarray]:
@@ -30,9 +28,12 @@ class Layer:
     
     @property
     def P(self) -> Callable[[float], np.ndarray]:
+        wavenumber = lambda wavelength: (2*np.pi) / wavelength
+
+        coeff = lambda wavelength: self.refractive_index[wavelength] * self.thickness*1j* wavenumber(wavelength)
         return lambda wavelength: np.array([
-            [e**(self.refractive_index[wavelength]["k"]*self.thickness*1j), 0],
-            [0, e**-(self.refractive_index[wavelength]["k"]*self.thickness*1j)]
+            [np.exp(-coeff(wavelength)), 0],
+            [0, np.e**(coeff(wavelength))]
         ])
 
 
@@ -61,4 +62,4 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
     for matrix in matrices[1:]:
         M = np.matmul(M, matrix)
 
-    return M[1,0]/M[0,0], M[0,0]
+    return abs((M[1,0]/M[0,0]))**2, abs(1/M[0,0])**2
