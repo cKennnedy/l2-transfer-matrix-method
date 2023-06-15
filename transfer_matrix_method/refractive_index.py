@@ -17,10 +17,7 @@ class RefractiveIndex:
         above = min([w for w in wavelengths if w > wavelength])
         interp_coeff = (wavelength-below) / (above - below)
         lininterp = lambda value: self._data[below][value] + interp_coeff * (self._data[above][value] - self._data[below][value])
-        return {
-            "n": lininterp("n"), 
-            "k": lininterp("k")
-        }
+        return lininterp("n") + lininterp("k")*1j
     
 class YAMLRefractiveIndex(RefractiveIndex):
     def __init__(self, data_file: TextIOWrapper):
