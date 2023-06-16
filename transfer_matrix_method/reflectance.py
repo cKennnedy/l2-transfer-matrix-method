@@ -62,4 +62,4 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
     for matrix in matrices[1:]:
         M = np.matmul(M, matrix)
 
-    return abs((M[1,0]/M[0,0]))**2, abs(1/M[0,0])**2
+    return {"reflectance": abs((M[1,0]/M[0,0]))**2, "transmittance": abs(1/M[0,0])**2}
