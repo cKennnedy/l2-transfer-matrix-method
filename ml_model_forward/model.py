@@ -5,7 +5,7 @@ import os
 
 
 from keras.layers import Input, Embedding, Dense, Concatenate, Flatten, TextVectorization
-from keras.models import Model
+from keras.models import Model, load_model
 
 from typing import Optional
 from functools import wraps
@@ -14,10 +14,10 @@ class ModelStateException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
-def require_trained(func):
-    def decorator(extra_message):
+def require_trained(extra_message=None):
+    def decorator(func):
         @wraps(func)
-        def wrapper(self: ForwardTMMModel, *args, **kwargs):
+        def wrapper(self: "ForwardTMMModel", *args, **kwargs):
             if not self.is_trained:
                 raise ModelStateException("Model is not yet trained" + (f": {extra_message}" if extra_message else ""))
             return func(self, *args, **kwargs)
@@ -34,19 +34,19 @@ class ForwardTMMModel:
             serialised_model_path: Optional[str] = "",
         ):
 
-        self.model = self._model
 
-        model_is_saved = os.path.isfile(serialised_model_path)
+        model_is_saved = os.path.isfile(serialised_model_path) or os.path.isdir(serialised_model_path)
         self.serialised_model_path = serialised_model_path
         if retrain or not model_is_saved:
+            self.model = self._model()
             self.is_trained = False
         else:
+            self.model = load_model(serialised_model_path)
             self.is_trained = True
 
         self.model.compile("adam", loss="mean_squared_error")
     
-    @property
-    def _model(self):
+    def _model(self) -> Model:
         thicknesses = Input(shape=(6,))
         materials = Input(shape=(2,),dtype=tf.string)
         vocab_size = 300
@@ -105,14 +105,14 @@ class ForwardTMMModel:
         self.is_trained = True
         return history
     
-    @require_trained    
+    @require_trained()  
     def predict(self, features: pd.DataFrame) -> pd.DataFrame:
         inputs = self._split_features_to_inputs(features)
         res_array = self.model.predict(inputs)
         cols = pd.Series(np.arange(400,751))
         return pd.DataFrame(res_array, columns=cols)
     
-    @require_trained
+    @require_trained()
     def save(self, fp: Optional[str] = None):
         if fp:
             self.serialised_model_path = fp
