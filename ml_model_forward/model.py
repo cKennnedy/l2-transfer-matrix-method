@@ -1,90 +1,121 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from keras.layers import Input, Embedding, Dense, Concatenate, Flatten, Dropout,BatchNormalization
-from keras.models import Model
 import numpy as np
-
-from typing import Optional
+import tensorflow as tf
 import os
 
+
+from keras.layers import Input, Embedding, Dense, Concatenate, Flatten, TextVectorization
+from keras.models import Model
+
+from typing import Optional
+from functools import wraps
+
+class ModelStateException(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+
+def require_trained(func):
+    def decorator(extra_message):
+        @wraps(func)
+        def wrapper(self: ForwardTMMModel, *args, **kwargs):
+            if not self.is_trained:
+                raise ModelStateException("Model is not yet trained" + (f": {extra_message}" if extra_message else ""))
+            return func(self, *args, **kwargs)
+        return wrapper  
+    return decorator
+
 class ForwardTMMModel:
-    @property
-    def _model(self):
-        input_layer = Input(shape=(8,))
-
-        input_materials = input_layer[:, 6:8]
-        material_embedding = Embedding(input_dim=num_materials, output_dim=8)(input_materials)
-        material_embedding = Flatten()(material_embedding)
-
-        dense_layer1 = Dense(units=256, activation='PReLU')(input_layer[:,:6])
-        dense_layer1 = BatchNormalization()(dense_layer1)  # Apply batch normalization
-
-        dense_layer2 = Dense(units=128, activation='PReLU')(dense_layer1)
-        dense_layer2 = BatchNormalization()(dense_layer2)  # Apply batch normalization
-
-        dense_layer3 = Dense(units=64, activation='PReLU')(dense_layer2)
-        dense_layer3 = BatchNormalization()(dense_layer3)  # Apply batch normalization
-
-        concatenated_features = Concatenate()([dense_layer3, material_embedding])
-
-        dense_layer4 = Dense(units=128, activation='PReLU')(concatenated_features)
-        dense_layer4 = BatchNormalization()(dense_layer4)  # Apply batch normalization
-
-        dense_layer5 = Dense(units=64, activation='PReLU')(dense_layer4)
-        dense_layer5 = BatchNormalization()(dense_layer5)  # Apply batch normalization
-
-        output_layer = Dense(units=num_wavelengths, activation='sigmoid')(dense_layer5)
-
-        return Model(inputs=input_layer, outputs=output_layer)
-    
-    def train(self, *args, **kwargs):
-        return self._model.fit(*args, **kwargs)
+    is_trained: bool = False
+    material_feature_cols = ["First Layer", "Second Layer"]
 
     def __init__(
             self,
             retrain: bool = False,
-            serialised_model_path: Optional[str] = None,
-            training_data: Optional[pd.DataFrame] = None,
-            validation_prop: float = 0.1,
-            test_prop: float = 0.1
+            serialised_model_path: Optional[str] = "",
         ):
 
+        self.model = self._model
+
         model_is_saved = os.path.isfile(serialised_model_path)
+        self.serialised_model_path = serialised_model_path
         if retrain or not model_is_saved:
-            self._model.compile(optimizer='adam', loss='mean_squared_error', metrics="accuracy")
-            self
-                    
+            self.is_trained = False
+        else:
+            self.is_trained = True
 
+        self.model.compile("adam", loss="mean_squared_error")
+    
+    @property
+    def _model(self):
+        thicknesses = Input(shape=(6,))
+        materials = Input(shape=(2,),dtype=tf.string)
+        vocab_size = 300
 
+        vectorize_layer = TextVectorization(
+            max_tokens=vocab_size,
+            output_sequence_length=1,
+            name="string_vec"
+        )
 
-# Read the CSV file
-data = pd.read_csv("R.csv")
+        vectorized_mat1 = vectorize_layer(materials[:,:1])
+        vectorized_mat2 = vectorize_layer(materials[:,1:])
 
-labels = data.copy()
+        v_materials = Concatenate()([vectorized_mat1, vectorized_mat2])
 
-feature_headings = [
-    "d1","d2","d3","d4","d5","d6","First Layer","Second Layer"
-]
+        material_embedding = Embedding(input_dim=vocab_size, output_dim=8)(v_materials)
+        material_embedding = Flatten()(material_embedding)
 
-input_features = labels[feature_headings]
-output_values = labels[[c for c in labels.columns if c not in feature_headings]]
-label_encoder = LabelEncoder()
-input_features["First Layer"] = label_encoder.fit_transform(input_features["First Layer"])
-input_features["Second Layer"] = label_encoder.transform(input_features["Second Layer"])
+        dense_layer1 = Dense(units=256, activation='PReLU')(thicknesses)
 
-unique_materials = pd.unique(data[['First Layer', 'Second Layer']].values.ravel())
+        dense_layer2 = Dense(units=128, activation='PReLU')(dense_layer1)
 
+        dense_layer3 = Dense(units=64, activation='PReLU')(dense_layer2)
 
-num_materials = len(unique_materials)
-num_wavelengths = 351
+        concatenated_features = Concatenate()([dense_layer3, material_embedding])
 
-input_train, input_test, output_train, output_test = train_test_split(input_features, output_values, test_size=0.2, random_state=42)
-input_train, input_val, output_train, output_val = train_test_split(input_train, output_train, test_size=0.2, random_state=42)
+        dense_layer4 = Dense(units=128, activation='PReLU')(concatenated_features)
 
+        dense_layer5 = Dense(units=64, activation='PReLU')(dense_layer4)
 
+        output_layer = Dense(units=351, activation='sigmoid')(dense_layer5)
 
-model.compile(optimizer='adam', loss='mean_squared_error', metrics="accuracy")
+        return Model(inputs=[thicknesses,materials], outputs=output_layer)
+    
+    def _split_features_to_inputs(self, features: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        return (
+            features[[c for c in features.columns if c not in self.material_feature_cols]],
+            features[self.material_feature_cols]
+        )
+        
+    def train(self, features: pd.DataFrame, labels: pd.DataFrame, validation_split: float = 0.1, epochs: int = 100):
+        thicknesses, materials = self._split_features_to_inputs(features)
 
+        vectoriser = self.model.get_layer("string_vec")
+        vectoriser.adapt(np.unique(materials.values).T)
+        history = self.model.fit(
+            [
+                thicknesses,
+                materials,
+            ],
+            labels,
+            epochs=epochs,
+            validation_split=validation_split
+        )
 
-history=model.fit(input_train, output_train,validation_data=(input_val, output_val), epochs=100, batch_size=32)
+        self.is_trained = True
+        return history
+    
+    @require_trained    
+    def predict(self, features: pd.DataFrame) -> pd.DataFrame:
+        inputs = self._split_features_to_inputs(features)
+        res_array = self.model.predict(inputs)
+        cols = pd.Series(np.arange(400,751))
+        return pd.DataFrame(res_array, columns=cols)
+    
+    @require_trained
+    def save(self, fp: Optional[str] = None):
+        if fp:
+            self.serialised_model_path = fp
+        if not self.serialised_model_path:
+            raise ModelStateException("Model has no filepath to save to")
+        self.model.save(self.serialised_model_path)
