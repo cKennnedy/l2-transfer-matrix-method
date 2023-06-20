@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Callable, Any
 
 from keras.models import Model, load_model
 from keras.callbacks import History
@@ -32,20 +32,15 @@ class SerialisableModel:
             serialised_model_path: Optional[str] = "",
         ):
 
-
         model_is_saved = os.path.isfile(serialised_model_path) or os.path.isdir(serialised_model_path)
         self.serialised_model_path = serialised_model_path
-        if retrain or not model_is_saved:
-            self.model = self._model()
-            self.is_trained = False
-        else:
+
+        if model_is_saved and not retrain:
             self.model: Model = load_model(serialised_model_path)
             self.is_trained = True
-
-        self.compile()
     
     @abstractmethod
-    def _model(self) -> Model:
+    def _create_model_factory(self) -> tuple[Callable[[dict[str, Any]], Model], dict[str, Callable]]:
         pass
     
     @abstractmethod
@@ -53,6 +48,11 @@ class SerialisableModel:
         pass
     
     def train(self, features: pd.DataFrame, labels: pd.DataFrame, validation_split: float = 0.1, epochs: int = 100) -> History:
+        model_factory, parameters = self._create_model_factory()
+        for param, method in parameters.items():
+            parameters[param] = method(features=features, labels=labels)
+        self.model = model_factory(parameters)
+        self.compile()
         history = self._train(features, labels, validation_split, epochs)
         self.is_trained = True
         return history

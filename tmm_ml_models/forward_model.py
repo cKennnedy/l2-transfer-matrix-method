@@ -5,7 +5,7 @@ import tensorflow as tf
 from keras.layers import Input, Embedding, Dense, Concatenate, Flatten, TextVectorization
 from keras.models import Model
 
-from typing import Iterable
+from typing import Iterable, Callable, Any
 from .serialisable_model import SerialisableModel
 
 
@@ -13,40 +13,45 @@ class ForwardTMMModel(SerialisableModel):
     is_trained: bool = False
     _material_feature_cols = ["First Layer", "Second Layer"]
     
-    def _model(self) -> Model:
-        thicknesses = Input(shape=(6,))
-        materials = Input(shape=(2,),dtype=tf.string)
-        vocab_size = 300
+    def _create_model_factory(self) -> tuple[Callable[[dict[str, Any]], Model], dict[str, Callable]]:
+        def model_factory(parameters):
+            thicknesses = Input(shape=(parameters["num_thicknesses"],))
+            materials = Input(shape=(parameters["num_materials"],),dtype=tf.string)
+            vocab_size = 300
 
-        vectorize_layer = TextVectorization(
-            max_tokens=vocab_size,
-            output_sequence_length=1,
-            name="string_vec"
+            vectorize_layer = TextVectorization(
+                max_tokens=vocab_size,
+                output_sequence_length=1,
+                name="string_vec"
+            )
+
+            vec_materials = [
+                vectorize_layer(string) for string in tf.transpose(materials)
+            ]
+
+            v_materials = Concatenate()(vec_materials)
+
+            material_embedding = Embedding(input_dim=vocab_size, output_dim=8)(v_materials)
+            material_embedding = Flatten()(material_embedding)
+
+            dense_layer1 = Dense(units=256, activation='PReLU')(thicknesses)
+            dense_layer2 = Dense(units=128, activation='PReLU')(dense_layer1)
+            dense_layer3 = Dense(units=64, activation='PReLU')(dense_layer2)
+
+            concatenated_features = Concatenate()([dense_layer3, material_embedding])
+
+            dense_layer4 = Dense(units=128, activation='PReLU')(concatenated_features)
+            dense_layer5 = Dense(units=64, activation='PReLU')(dense_layer4)
+            output_layer = Dense(units=351, activation='sigmoid')(dense_layer5)
+
+            return Model(inputs=[thicknesses,materials], outputs=output_layer)
+        return (
+            model_factory,
+            {
+                "num_materials": lambda features, labels: 2,
+                "num_thicknesses": lambda features, labels: 6
+            }
         )
-
-        vectorized_mat1 = vectorize_layer(materials[:,:1])
-        vectorized_mat2 = vectorize_layer(materials[:,1:])
-
-        v_materials = Concatenate()([vectorized_mat1, vectorized_mat2])
-
-        material_embedding = Embedding(input_dim=vocab_size, output_dim=8)(v_materials)
-        material_embedding = Flatten()(material_embedding)
-
-        dense_layer1 = Dense(units=256, activation='PReLU')(thicknesses)
-
-        dense_layer2 = Dense(units=128, activation='PReLU')(dense_layer1)
-
-        dense_layer3 = Dense(units=64, activation='PReLU')(dense_layer2)
-
-        concatenated_features = Concatenate()([dense_layer3, material_embedding])
-
-        dense_layer4 = Dense(units=128, activation='PReLU')(concatenated_features)
-
-        dense_layer5 = Dense(units=64, activation='PReLU')(dense_layer4)
-
-        output_layer = Dense(units=351, activation='sigmoid')(dense_layer5)
-
-        return Model(inputs=[thicknesses,materials], outputs=output_layer)
 
     def compile(self) -> None:
         self.model.compile("adam", loss="mean_squared_error")
