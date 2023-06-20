@@ -1,17 +1,21 @@
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from keras.callbacks import History
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 from keras.layers import Input, Dense, Concatenate
 from keras.models import Model
 import keras
 import tensorflow as tf
+import numpy as np
 
-from .serialisable_model import SerialisableModel
+import json
+
+from .serialisable_model import SerialisableModel, ModelStateException
 
 class ReverseTMMModel(SerialisableModel):
     material_label_columns = ["First Layer", "Second Layer"]
+    material_library = dict()
+
 
     def _create_model_factory(self) -> tuple[Callable[[dict[str, Any]], Model], dict[str, Callable[..., Any]]]:
         def model_factory(parameters):
@@ -49,8 +53,8 @@ class ReverseTMMModel(SerialisableModel):
         return (
             model_factory,
             {
-                "num_materials": lambda features, labels: 2,
-                "num_wavelengths": lambda features, labels: len(labels.columns)
+                "num_materials": lambda features, labels: 32,
+                "num_wavelengths": lambda features, labels: len(features.columns)
             }
         )
     
@@ -79,5 +83,67 @@ class ReverseTMMModel(SerialisableModel):
             }
         )
     
+    def load_library(self, fp: str):
+        with open(fp) as f:
+            return json.load(f) 
+
+    def save_library(self, fp: str):
+        with open(fp, "w") as f: 
+            json.dump(self.material_library, f)
+
+    def material_enc(self, material: str):
+        return self.material_library[material]
+
+    def _reverse_material(self, enc: str):
+        return {v:k for k,v in self.material_library.items()}[enc]
+
     def _train(self, features: pd.DataFrame, labels: pd.DataFrame, validation_split: float, epochs: float) -> History:
+        unique_training_materials = np.unique(labels[["First Layer", "Second Layer"]].values)
+        for material in unique_training_materials:
+            if not self.material_library:
+                self.material_library[material] = 0
+            elif material not in self.material_library:
+                self.material_library[material] = max(self.material_library.values()) + 1
+
+
+        self.model.fit(
+            features,
+            {
+                "first_layer": labels["First Layer"].apply(self.material_enc),
+                "second_layer": labels["Second Layer"].apply(self.material_enc),
+                "t1": labels["d1"],
+                "t2": labels["d2"],
+                "t3": labels["d3"],
+                "t4": labels["d4"],
+                "t5": labels["d5"],
+                "t6": labels["d6"],
+            },
+            epochs=epochs,
+            validation_split=validation_split
+        )
         
+
+    def _predict(self, features: pd.DataFrame) -> pd.DataFrame:
+        if not self.material_library:
+            try:
+                self.material_library = self.load_library(f"{self.serialised_model_path}/materials.json")
+            except FileNotFoundError as e:
+                raise ModelStateException("Model trained but no material encoding exists")
+    
+        res_array = self.model.predict(features)
+        cols = pd.Series(["d1", "d2", "d3", "d4", "d5", "d6"])
+        derive_material = lambda arr: self._reverse_material(np.argmax(arr))
+        transform_materials = lambda arr: np.array([[derive_material(wgts)] for wgts in arr])
+        res_df = pd.DataFrame(
+            np.hstack((*res_array[2:],)),
+            columns=cols,
+            index=features.index
+        )
+        res_df["First Layer"] = transform_materials(res_array[0])
+        res_df["Second Layer"] = transform_materials(res_array[1])
+        return res_df
+    
+    def save(self, fp: str | None = None):
+        ret = super().save(fp)
+        self.save_library(f"{self.serialised_model_path}/materials.json")
+        return ret

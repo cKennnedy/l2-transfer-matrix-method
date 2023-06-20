@@ -24,6 +24,7 @@ def require_trained(extra_message=None):
     return decorator
 
 class SerialisableModel:
+    model: Optional[Model] = None
     is_trained: bool = False
 
     def __init__(
@@ -48,11 +49,12 @@ class SerialisableModel:
         pass
     
     def train(self, features: pd.DataFrame, labels: pd.DataFrame, validation_split: float = 0.1, epochs: int = 100) -> History:
-        model_factory, parameters = self._create_model_factory()
-        for param, method in parameters.items():
-            parameters[param] = method(features=features, labels=labels)
-        self.model = model_factory(parameters)
-        self.compile()
+        if not self.model:
+            model_factory, parameters = self._create_model_factory()
+            for param, method in parameters.items():
+                parameters[param] = method(features=features, labels=labels)
+            self.model = model_factory(parameters)
+            self.compile()
         history = self._train(features, labels, validation_split, epochs)
         self.is_trained = True
         return history
