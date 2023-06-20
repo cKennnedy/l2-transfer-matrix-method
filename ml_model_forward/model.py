@@ -7,7 +7,7 @@ import os
 from keras.layers import Input, Embedding, Dense, Concatenate, Flatten, TextVectorization
 from keras.models import Model, load_model
 
-from typing import Optional
+from typing import Optional, Iterable
 from functools import wraps
 
 class ModelStateException(Exception):
@@ -111,6 +111,14 @@ class ForwardTMMModel:
         res_array = self.model.predict(inputs)
         cols = pd.Series(np.arange(400,751))
         return pd.DataFrame(res_array, columns=cols)
+    
+    def predict_one(self, thicknesses: Iterable, materials: tuple[str, str]) -> pd.DataFrame:
+        return self.predict(
+            pd.DataFrame(
+                [[*thicknesses, *materials]],
+                columns=["d1","d2","d3","d4","d5","d6","First Layer","Second Layer"]
+            )
+        )
     
     @require_trained()
     def save(self, fp: Optional[str] = None):
