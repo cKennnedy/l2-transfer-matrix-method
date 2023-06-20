@@ -1,3 +1,4 @@
+from typing import Any, Callable
 from keras.callbacks import History
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -10,38 +11,48 @@ import tensorflow as tf
 from .serialisable_model import SerialisableModel
 
 class ReverseTMMModel(SerialisableModel):
-    def _model(self) -> Model:
-        num_wavelengths = 351
-        num_materials = 32
-        i = Input(num_wavelengths,)
+    material_label_columns = ["First Layer", "Second Layer"]
 
-        dl1 = Dense(num_wavelengths, activation="PReLU", input_shape=(num_wavelengths,))(i)
+    def _create_model_factory(self) -> tuple[Callable[[dict[str, Any]], Model], dict[str, Callable[..., Any]]]:
+        def model_factory(parameters):
+            num_wavelengths = parameters["num_wavelengths"]
+            num_materials = parameters["num_materials"]
+            i = Input(num_wavelengths,)
 
-        m1dl2 = Dense(256, activation="PReLU")(dl1)
-        m2dl2 = Dense(256, activation="PReLU")(dl1)
-        tdl2 = Dense(256, activation="PReLU")(dl1)
+            dl1 = Dense(num_wavelengths, activation="PReLU", input_shape=(num_wavelengths,))(i)
 
-        concatenated_input = Concatenate()([m1dl2, m2dl2, tdl2])
+            m1dl2 = Dense(256, activation="PReLU")(dl1)
+            m2dl2 = Dense(256, activation="PReLU")(dl1)
+            tdl2 = Dense(256, activation="PReLU")(dl1)
 
-        common_layer = Dense(500)(concatenated_input)
+            concatenated_input = Concatenate()([m1dl2, m2dl2, tdl2])
 
-        m1dl3 = Dense(128, activation="PReLU")(common_layer)
-        m2dl3 = Dense(128, activation="PReLU")(common_layer)
-        tdl3 = Dense(128, activation="PReLU")(common_layer)
+            common_layer = Dense(500)(concatenated_input)
 
-        out1 = Dense(num_materials, "softmax", name="first_layer")(m1dl3)
-        out2 = Dense(num_materials, "softmax", name="second_layer")(m2dl3)
+            m1dl3 = Dense(128, activation="PReLU")(common_layer)
+            m2dl3 = Dense(128, activation="PReLU")(common_layer)
+            tdl3 = Dense(128, activation="PReLU")(common_layer)
 
-        material1 = Concatenate()([tdl3,out1])
-        material2 = Concatenate()([tdl3,out2])
-        t1 = Dense(1, "relu", name="t1")(material1)
-        t2 = Dense(1, "relu", name="t2")(material2)
-        t3 = Dense(1, "relu", name="t3")(material1)
-        t4 = Dense(1, "relu", name="t4")(material2)
-        t5 = Dense(1, "relu", name="t5")(material1)
-        t6 = Dense(1, "relu", name="t6")(material2)
+            out1 = Dense(num_materials, "softmax", name="first_layer")(m1dl3)
+            out2 = Dense(num_materials, "softmax", name="second_layer")(m2dl3)
 
-        return Model(inputs=i, outputs=[out1,out2,t1,t2,t3,t4,t5,t6])
+            material1 = Concatenate()([tdl3,out1])
+            material2 = Concatenate()([tdl3,out2])
+            t1 = Dense(1, "relu", name="t1")(material1)
+            t2 = Dense(1, "relu", name="t2")(material2)
+            t3 = Dense(1, "relu", name="t3")(material1)
+            t4 = Dense(1, "relu", name="t4")(material2)
+            t5 = Dense(1, "relu", name="t5")(material1)
+            t6 = Dense(1, "relu", name="t6")(material2)
+
+            return Model(inputs=i, outputs=[out1,out2,t1,t2,t3,t4,t5,t6])
+        return (
+            model_factory,
+            {
+                "num_materials": lambda features, labels: 2,
+                "num_wavelengths": lambda features, labels: len(labels.columns)
+            }
+        )
     
     def compile(self) -> None:
         self.model.compile(
