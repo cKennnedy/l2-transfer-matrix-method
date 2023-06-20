@@ -70,6 +70,14 @@ class SerialisableModel:
     @abstractmethod
     def _predict(self, features: pd.DataFrame) -> pd.DataFrame:
         pass
+
+    @require_trained()
+    def evaluate(self, features: pd.DataFrame, labels: pd.DataFrame):
+        return self._evaluate(features, labels)
+
+    @abstractmethod
+    def _evauate(self, features: pd.DataFrame, labels: pd.DataFrame):
+        pass
     
     @require_trained()
     def save(self, fp: Optional[str] = None):

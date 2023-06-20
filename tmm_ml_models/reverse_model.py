@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from keras.layers import Input, Dense, Concatenate
 from keras.models import Model
-import keras
+from tensorflow import keras
 import tensorflow as tf
 import numpy as np
 
@@ -30,14 +30,12 @@ class ReverseTMMModel(SerialisableModel):
             dl4 = Dense(256, activation="PReLU")(dl3)
             out1 = Dense(num_materials, "softmax", name="first_layer")(dl4)
             out2 = Dense(num_materials, "softmax", name="second_layer")(dl4)
-            dl5 = Dense(256, activation="PReLU")(dl4)
-            dl6 = Dense(256, activation="PReLU")(dl5)
-            join = Concatenate()([i,out1,out2])
+            join = Concatenate()([dl4,out1,out2])
             dl5 = Dense(256, activation="PReLU")(join)
             dl6 = Dense(256, activation="PReLU")(dl5)
             dl5 = Dense(256, activation="PReLU")(dl4)
             dl6 = Dense(256, activation="PReLU")(dl5)
-            t1 = Dense(6, "relu", name="t1")(dl6)
+            t1 = Dense(6, "relu", name="thicknesses")(dl6)
 
 
             return Model(inputs=i, outputs=[out1,out2,t1])
@@ -60,16 +58,13 @@ class ReverseTMMModel(SerialisableModel):
             },
             loss_weights=[1,1,0.01],
             metrics={
-                "first_layer": tf.metrics.SparseCategoricalAccuracy("acc1"),
-                "second_layer": tf.metrics.SparseCategoricalAccuracy("acc2"),
-                "t1": "accuracy",
+                "first_layer": tf.metrics.SparseCategoricalAccuracy("First_Layer_Accuracy"),
+                "second_layer": tf.metrics.SparseCategoricalAccuracy("Second_Layer_Accuracy"),
+                "thicknesses": tf.keras.metrics.MeanSquaredError("Thickness_MSE"),
             
             }
         )
 
-           
-        
-    
     def load_library(self, fp: str):
         with open(fp) as f:
             return json.load(f) 
@@ -92,17 +87,12 @@ class ReverseTMMModel(SerialisableModel):
             elif material not in self.material_library:
                 self.material_library[material] = max(self.material_library.values()) + 1
 
-
-        self.model.fit(
+        return self.model.fit(
             features,
             {
-               
                 "first_layer": labels["First Layer"].apply(self.material_enc),
                 "second_layer": labels["Second Layer"].apply(self.material_enc),
                 "t1": labels[["d1","d2","d3","d4","d5","d6"]],
-
-
-
             },
             epochs=epochs,
             validation_split=validation_split
@@ -128,6 +118,9 @@ class ReverseTMMModel(SerialisableModel):
         res_df["First Layer"] = transform_materials(res_array[0])
         res_df["Second Layer"] = transform_materials(res_array[1])
         return res_df
+
+    def _evauate(self, features: pd.DataFrame, labels: pd.DataFrame):
+        return self.model.evaluate(features, labels)
     
     def save(self, fp: str | None = None):
         ret = super().save(fp)
