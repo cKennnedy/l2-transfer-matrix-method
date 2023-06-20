@@ -5,7 +5,7 @@ description = ""
 authors = ["Charlie Kennedy <charleslloydkennedy@gmail.com>"]
 packages = [
     { include="transfer_matrix_method" },
-    { include="ml_model_forward" }
+    { include="tmm_ml_models" }
 ]
 
 [tool.poetry.dependencies]
