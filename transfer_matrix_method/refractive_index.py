@@ -2,6 +2,7 @@ from .get_material_data import get_filepath
 
 from io import TextIOWrapper
 import yaml
+from yaml.loader import FullLoader
 import csv
 
 
@@ -21,12 +22,12 @@ class RefractiveIndex:
     
 class YAMLRefractiveIndex(RefractiveIndex):
     def __init__(self, data_file: TextIOWrapper):
-        data_wrapper = yaml.load(data_file.read())
+        data_wrapper = yaml.load(data_file.read(), Loader=FullLoader)
         data = csv.reader(data_wrapper["DATA"][0]["data"].split("\n"), delimiter=" ")
         prepared_data = {}
         for data_point in data:
                 if not len(data_point) == 0:
-                    prepared_data[float(data_point[0])] = {"n": float(data_point[1]), "k": float(data_point[2])}
+                    prepared_data[float(data_point[0])*1e-6] = {"n": float(data_point[1]), "k": float(data_point[2])}
 
         super().__init__(prepared_data)
 
