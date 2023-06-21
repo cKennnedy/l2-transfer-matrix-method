@@ -16,6 +16,13 @@ class ReverseTMMModel(SerialisableModel):
     material_label_columns = ["First Layer", "Second Layer"]
     material_library = dict()
 
+    def __init__(self, retrain: bool = False, serialised_model_path: str | None = ""):
+        super().__init__(retrain, serialised_model_path)
+        if self.model:
+            try:
+                self.material_library = self.load_library(f"{self.serialised_model_path}/materials.json")
+            except FileNotFoundError as e:
+                raise ModelStateException("Model loaded from disk, but no materials library found")
 
     def _create_model_factory(self) -> tuple[Callable[[dict[str, Any]], Model], dict[str, Callable[..., Any]]]:
         def model_factory(parameters):
@@ -53,7 +60,7 @@ class ReverseTMMModel(SerialisableModel):
             loss={
                 "first_layer": keras.losses.SparseCategoricalCrossentropy(),
                 "second_layer": keras.losses.SparseCategoricalCrossentropy(),
-                "t1": "mean_squared_error",
+                "thicknesses": "mean_squared_error",
             
             },
             loss_weights=[1,1,0.01],
@@ -92,7 +99,7 @@ class ReverseTMMModel(SerialisableModel):
             {
                 "first_layer": labels["First Layer"].apply(self.material_enc),
                 "second_layer": labels["Second Layer"].apply(self.material_enc),
-                "t1": labels[["d1","d2","d3","d4","d5","d6"]],
+                "thicknesses": labels[["d1","d2","d3","d4","d5","d6"]],
             },
             epochs=epochs,
             validation_split=validation_split
@@ -119,10 +126,18 @@ class ReverseTMMModel(SerialisableModel):
         res_df["Second Layer"] = transform_materials(res_array[1])
         return res_df
 
-    def _evauate(self, features: pd.DataFrame, labels: pd.DataFrame):
-        return self.model.evaluate(features, labels)
+    def _evaluate(self, features: pd.DataFrame, labels: pd.DataFrame):
+        return self.model.evaluate(
+            features,
+            {
+                "first_layer": labels["First Layer"].apply(self.material_enc),
+                "second_layer": labels["Second Layer"].apply(self.material_enc),
+                "thicknesses": labels[["d1","d2","d3","d4","d5","d6"]],
+            }
+        )
     
     def save(self, fp: str | None = None):
         ret = super().save(fp)
+            
         self.save_library(f"{self.serialised_model_path}/materials.json")
         return ret

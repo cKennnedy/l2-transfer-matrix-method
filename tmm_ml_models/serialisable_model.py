@@ -76,7 +76,7 @@ class SerialisableModel:
         return self._evaluate(features, labels)
 
     @abstractmethod
-    def _evauate(self, features: pd.DataFrame, labels: pd.DataFrame):
+    def _evaluate(self, features: pd.DataFrame, labels: pd.DataFrame):
         pass
     
     @require_trained()
