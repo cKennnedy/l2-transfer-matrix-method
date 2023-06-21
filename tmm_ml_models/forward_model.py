@@ -54,7 +54,7 @@ class ForwardTMMModel(SerialisableModel):
         )
 
     def compile(self) -> None:
-        self.model.compile("adam", loss="mean_squared_error")
+        self.model.compile("adam", loss="mean_squared_error", metrics=[tf.keras.metrics.MeanSquaredError()])
     
     def _split_features_to_inputs(self, features: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         return (
@@ -92,3 +92,7 @@ class ForwardTMMModel(SerialisableModel):
                 columns=["d1","d2","d3","d4","d5","d6","First Layer","Second Layer"]
             )
         )
+    
+    def _evaluate(self, features: pd.DataFrame, labels: pd.DataFrame):
+        inputs = self._split_features_to_inputs(features)
+        return self.model.evaluate(inputs, labels)
