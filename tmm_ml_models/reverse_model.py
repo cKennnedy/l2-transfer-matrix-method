@@ -106,16 +106,26 @@ class ReverseTMMModel(SerialisableModel):
         )
         
 
-    def _predict(self, features: pd.DataFrame) -> pd.DataFrame:
+    def _predict(self, features: pd.DataFrame, allowed_materials: Optional[list[str]] = None) -> pd.DataFrame:
         if not self.material_library:
             try:
                 self.material_library = self.load_library(f"{self.serialised_model_path}/materials.json")
             except FileNotFoundError as e:
                 raise ModelStateException("Model trained but no material encoding exists")
+            
+        if allowed_materials:
+            for material in allowed_materials:
+                if material not in self.material_library:
+                    raise ValueError(f"Material: {material} not in model material library")
+            allowed_indices = [self.material_enc(material) for material in allowed_materials]
+            
     
         res_array = self.model.predict(features)
         cols = pd.Series(["d1", "d2", "d3", "d4", "d5", "d6"])
-        derive_material = lambda arr: self._reverse_material(np.argmax(arr))
+        pick_from_all = np.argmax
+        pick_from_allowed = lambda arr: max({i:wgt for i,wgt in enumerate(arr) if i in allowed_indices}.items(), key=lambda tup: tup[1])[0]
+        pick_function = pick_from_allowed if allowed_materials else pick_from_all
+        derive_material = lambda arr: self._reverse_material(pick_function(arr))
         transform_materials = lambda arr: np.array([[derive_material(wgts)] for wgts in arr])
         res_df = pd.DataFrame(
             res_array[2],

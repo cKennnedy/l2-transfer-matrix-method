@@ -64,8 +64,8 @@ class SerialisableModel:
         pass
     
     @require_trained()
-    def predict(self, features: pd.DataFrame) -> pd.DataFrame:
-        return self._predict(features)
+    def predict(self, features: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        return self._predict(features, **kwargs)
     
     @abstractmethod
     def _predict(self, features: pd.DataFrame) -> pd.DataFrame:
