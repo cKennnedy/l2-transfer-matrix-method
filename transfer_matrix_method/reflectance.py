@@ -38,7 +38,7 @@ class Layer:
 
 
 
-def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
+def reflectance(layers: list[Layer], wavelength: float, substrate: Layer | None = None) -> tuple[float,float]:
     """Calculate the reflectance of a list of thin layers
 
     Args:
@@ -49,7 +49,7 @@ def reflectance(layers: list[Layer], wavelength: float) -> tuple[float,float]:
     """
 
     air = Layer(1000, RefractiveIndex({0: {"n":1, "k":0}, 1000: {"n": 1, "k":0}}))
-    augmented_layers = [air, *layers, air]
+    augmented_layers = [air, *layers, substrate or air]
     
     matrices = [augmented_layers[0].D(augmented_layers[1])(wavelength)]
     for i in range(1, len(augmented_layers) - 1):
