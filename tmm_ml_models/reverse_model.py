@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 from keras.callbacks import History
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from keras.layers import Input, Dense, Concatenate
+from keras.layers import Input, Dense, Concatenate, Dropout
 from keras.models import Model
 from tensorflow import keras
 import tensorflow as tf
@@ -28,20 +28,30 @@ class ReverseTMMModel(SerialisableModel):
         def model_factory(parameters):
             num_wavelengths = parameters["num_wavelengths"]
             num_materials = parameters["num_materials"]
-            i = Input(num_wavelengths,)
+            i = Input(num_wavelengths)
 
             dl1 = Dense(num_wavelengths, activation="PReLU", input_shape=(num_wavelengths,))(i)
 
             dl2 = Dense(512, activation="PReLU")(dl1)
+            dl2 = Dropout(0.2)(dl2)  # Adding dropout layer with a dropout rate of 0.5
+
             dl3 = Dense(256, activation="PReLU")(dl2)
+            dl3 = Dropout(0.2)(dl3)
+
             dl4 = Dense(256, activation="PReLU")(dl3)
+            dl4 = Dropout(0.2)(dl4)
+
             out1 = Dense(num_materials, "softmax", name="first_layer")(dl4)
             out2 = Dense(num_materials, "softmax", name="second_layer")(dl4)
-            join = Concatenate()([dl4,out1,out2])
+
+            join = Concatenate()([dl4, out1, out2])
+
             dl5 = Dense(256, activation="PReLU")(join)
+            dl5 = Dropout(0.2)(dl5)
+
             dl6 = Dense(256, activation="PReLU")(dl5)
-            dl5 = Dense(256, activation="PReLU")(dl4)
-            dl6 = Dense(256, activation="PReLU")(dl5)
+            dl6 = Dropout(0.2)(dl6)
+
             t1 = Dense(6, "relu", name="thicknesses")(dl6)
 
 
