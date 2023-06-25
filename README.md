@@ -4,6 +4,8 @@
 
 This repository contains two packages and a collection of jupyter notebooks that were used to design and train the forward and reverse Machine Learning models to be used in the L2 Nano-electronics practical course.
 
+It also contains a number of saved keras models which are pre trained on the training data included in the repository. the versions marked FINAL are the ones used in the report.
+
 ## Prerequisites
 
 This project requires python at version 3.10.
