@@ -1,11 +1,10 @@
 from typing import Any, Callable, Optional
 from keras.callbacks import History
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from keras.layers import Input, Dense, Concatenate, Dropout
 from keras.models import Model
-from tensorflow import keras
-import tensorflow as tf
+from keras.metrics import SparseCategoricalAccuracy, MeanSquaredError as MeanSquaredErrorMetric
+from keras.losses import SparseCategoricalCrossentropy, MeanSquaredError as MeanSquaredErrorLoss
 import numpy as np
 
 import json
@@ -68,16 +67,16 @@ class ReverseTMMModel(SerialisableModel):
         self.model.compile(
             optimizer="adam",
             loss={
-                "first_layer": keras.losses.SparseCategoricalCrossentropy(),
-                "second_layer": keras.losses.SparseCategoricalCrossentropy(),
-                "thicknesses": "mean_squared_error",
+                "first_layer": SparseCategoricalCrossentropy(),
+                "second_layer": SparseCategoricalCrossentropy(),
+                "thicknesses": MeanSquaredErrorLoss(),
             
             },
             loss_weights=[1,1,0.01],
             metrics={
-                "first_layer": tf.metrics.SparseCategoricalAccuracy("First_Layer_Accuracy"),
-                "second_layer": tf.metrics.SparseCategoricalAccuracy("Second_Layer_Accuracy"),
-                "thicknesses": tf.keras.metrics.MeanSquaredError("Thickness_MSE"),
+                "first_layer": SparseCategoricalAccuracy("accuracy"),
+                "second_layer": SparseCategoricalAccuracy("accuracy"),
+                "thicknesses": MeanSquaredErrorMetric("MSE"),
             
             }
         )
