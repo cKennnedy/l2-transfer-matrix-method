@@ -1,11 +1,10 @@
 from typing import Any, Callable, Optional
 from keras.callbacks import History
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from keras.layers import Input, Dense, Concatenate, Dropout
+from keras.layers import Input, Dense
 from keras.models import Model
-from tensorflow import keras
-import tensorflow as tf
+from keras.metrics import SparseCategoricalAccuracy, MeanSquaredError as MeanSquaredErrorMetric
+from keras.losses import SparseCategoricalCrossentropy, MeanSquaredError as MeanSquaredErrorLoss
 import numpy as np
 
 import json
@@ -28,38 +27,27 @@ class ReverseTMMModel(SerialisableModel):
         def model_factory(parameters):
             num_wavelengths = parameters["num_wavelengths"]
             num_materials = parameters["num_materials"]
-            i = Input(num_wavelengths)
+
+            i = Input(num_wavelengths,)
 
             dl1 = Dense(num_wavelengths, activation="PReLU", input_shape=(num_wavelengths,))(i)
 
             dl2 = Dense(512, activation="PReLU")(dl1)
-            dl2 = Dropout(0.2)(dl2)  # Adding dropout layer with a dropout rate of 0.5
-
             dl3 = Dense(256, activation="PReLU")(dl2)
-            dl3 = Dropout(0.2)(dl3)
-
             dl4 = Dense(256, activation="PReLU")(dl3)
-            dl4 = Dropout(0.2)(dl4)
-
+            
             out1 = Dense(num_materials, "softmax", name="first_layer")(dl4)
             out2 = Dense(num_materials, "softmax", name="second_layer")(dl4)
-
-            join = Concatenate()([dl4, out1, out2])
-
-            dl5 = Dense(256, activation="PReLU")(join)
-            dl5 = Dropout(0.2)(dl5)
-
+            
+            dl5 = Dense(256, activation="PReLU")(dl4)
             dl6 = Dense(256, activation="PReLU")(dl5)
-            dl6 = Dropout(0.2)(dl6)
-
             t1 = Dense(6, "relu", name="thicknesses")(dl6)
-
 
             return Model(inputs=i, outputs=[out1,out2,t1])
         return (
             model_factory,
             {
-                "num_materials": lambda features, labels: 32,
+                "num_materials": lambda features, labels: len(np.unique(labels[self.material_label_columns].values)),
                 "num_wavelengths": lambda features, labels: len(features.columns)
             }
         )
@@ -68,16 +56,20 @@ class ReverseTMMModel(SerialisableModel):
         self.model.compile(
             optimizer="adam",
             loss={
-                "first_layer": keras.losses.SparseCategoricalCrossentropy(),
-                "second_layer": keras.losses.SparseCategoricalCrossentropy(),
-                "thicknesses": "mean_squared_error",
+                "first_layer": SparseCategoricalCrossentropy(),
+                "second_layer": SparseCategoricalCrossentropy(),
+                "thicknesses": MeanSquaredErrorLoss(),
             
             },
-            loss_weights=[1,1,0.01],
+            loss_weights={
+                "first_layer": 1,
+                "second_layer": 1,
+                "thicknesses": 0.01
+            },
             metrics={
-                "first_layer": tf.metrics.SparseCategoricalAccuracy("First_Layer_Accuracy"),
-                "second_layer": tf.metrics.SparseCategoricalAccuracy("Second_Layer_Accuracy"),
-                "thicknesses": tf.keras.metrics.MeanSquaredError("Thickness_MSE"),
+                "first_layer": SparseCategoricalAccuracy("accuracy"),
+                "second_layer": SparseCategoricalAccuracy("accuracy"),
+                "thicknesses": MeanSquaredErrorMetric("MSE"),
             
             }
         )
@@ -97,7 +89,7 @@ class ReverseTMMModel(SerialisableModel):
         return {v:k for k,v in self.material_library.items()}[enc]
 
     def _train(self, features: pd.DataFrame, labels: pd.DataFrame, validation_split: float, epochs: float) -> History:
-        unique_training_materials = np.unique(labels[["First Layer", "Second Layer"]].values)
+        unique_training_materials = np.unique(labels[self.material_label_columns].values)
         for material in unique_training_materials:
             if not self.material_library:
                 self.material_library[material] = 0
